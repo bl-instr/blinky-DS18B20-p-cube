@@ -9,8 +9,9 @@ union CubeData
     int16_t chipTemp;
     int16_t tempA;
     int16_t tempB;
+    int16_t tempC;
   };
-  byte buffer[10];
+  byte buffer[12];
 };
 CubeData cubeData;
 
@@ -19,17 +20,29 @@ CubeData cubeData;
 // from https://github.com/adamboardman/pico-onewire
 
 
-int commLEDPin = 11;
+int commLEDPin = 2;
 int commLEDBright = 255; 
-int resetButtonPin = 15;
+int resetButtonPin = 3;
 
 unsigned long lastPublishTime;
 unsigned long publishInterval = 3000;
 
-One_wire tempAOneWire(16);
-One_wire tempBOneWire(18);
+int signalPinA = 12;
+int signalPinB = 15;
+int signalPinC = 17;
+
+int powerPinA = 11;
+int powerPinB = 14;
+int powerPinC = 16;
+
+One_wire tempAOneWire(signalPinA);
+One_wire tempBOneWire(signalPinB);
+One_wire tempCOneWire(signalPinC);
+
 rom_address_t tempAaddress{};
 rom_address_t tempBaddress{};
+rom_address_t tempCaddress{};
+
 int g_tempCount = 0;
 
 void setupServerComm()
@@ -62,12 +75,31 @@ void setupCube()
   cubeData.state = 1;
   cubeData.watchdog = 0;
 
+  pinMode(signalPinA, INPUT_PULLUP);  
+  pinMode(signalPinB, INPUT_PULLUP);  
+  pinMode(signalPinC, INPUT_PULLUP);  
+
+  pinMode(powerPinA, OUTPUT);  
+  pinMode(powerPinB, OUTPUT);  
+  pinMode(powerPinC, OUTPUT);  
+
+  digitalWrite(powerPinA, HIGH);
+  digitalWrite(powerPinB, HIGH);
+  digitalWrite(powerPinC, HIGH);
+  
+  delay(1000);
+  
   tempAOneWire.init();
   tempBOneWire.init();
+  tempCOneWire.init();
+  
   tempAOneWire.single_device_read_rom(tempAaddress);
   tempBOneWire.single_device_read_rom(tempBaddress);
+  tempCOneWire.single_device_read_rom(tempCaddress);
+  
   cubeData.tempA = -100;
   cubeData.tempB = -100;
+  cubeData.tempC = -100;
   g_tempCount = 0;
 }
 
@@ -83,20 +115,26 @@ void cubeLoop()
       case 0:
         tempAOneWire.convert_temperature(tempAaddress, true, false);
         cubeData.tempA = (int16_t) (tempAOneWire.temperature(tempAaddress) * 100.0);
-//        if (printDiagnostics) Serial.print("Temp A: ");
-//        if (printDiagnostics) Serial.println(cubeData.tempA);
+        if (printDiagnostics) Serial.print("Temp A: ");
+        if (printDiagnostics) Serial.println(cubeData.tempA);
         break;
       case 1:
         tempBOneWire.convert_temperature(tempBaddress, true, false);
         cubeData.tempB = (int16_t) (tempBOneWire.temperature(tempBaddress) * 100.0);
-//        if (printDiagnostics) Serial.print("Temp B: ");
-//        if (printDiagnostics) Serial.println(cubeData.tempB);
+        if (printDiagnostics) Serial.print("Temp B: ");
+        if (printDiagnostics) Serial.println(cubeData.tempB);
+        break;
+      case 2:
+        tempCOneWire.convert_temperature(tempCaddress, true, false);
+        cubeData.tempC= (int16_t) (tempCOneWire.temperature(tempCaddress) * 100.0);
+        if (printDiagnostics) Serial.print("Temp C: ");
+        if (printDiagnostics) Serial.println(cubeData.tempC);
         break;
       default:
         break;
     }
     g_tempCount = g_tempCount + 1;
-    if (g_tempCount > 1) g_tempCount = 0;
+    if (g_tempCount > 2) g_tempCount = 0;
 
     lastPublishTime = nowTime;
     cubeData.watchdog = cubeData.watchdog + 1;
