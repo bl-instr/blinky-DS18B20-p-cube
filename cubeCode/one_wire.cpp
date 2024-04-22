@@ -330,7 +330,7 @@ int One_wire::convert_temperature(rom_address_t &address, bool wait, bool all) {
 			delay_time = 150;// 12bit conversion
 		}
 	}
-
+  
 	onewire_byte_out(ConvertTempCommand);// perform temperature conversion
 	if (_parasite_power) {
 		if (_power_mosfet) {

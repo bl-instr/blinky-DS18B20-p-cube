@@ -25,7 +25,7 @@ int commLEDBright = 255;
 int resetButtonPin = 3;
 
 unsigned long lastPublishTime;
-unsigned long publishInterval = 3000;
+unsigned long publishInterval = 4000;
 
 int signalPinA = 12;
 int signalPinB = 15;
@@ -96,7 +96,7 @@ void setupCube()
   tempAOneWire.single_device_read_rom(tempAaddress);
   tempBOneWire.single_device_read_rom(tempBaddress);
   tempCOneWire.single_device_read_rom(tempCaddress);
-  
+   
   cubeData.tempA = -100;
   cubeData.tempB = -100;
   cubeData.tempC = -100;
@@ -106,27 +106,46 @@ void setupCube()
 void cubeLoop()
 {
   unsigned long nowTime = millis();
+  int16_t temp;
   
   if ((nowTime - lastPublishTime) > publishInterval)
   {
-    cubeData.chipTemp = (int16_t) (analogReadTemp() * 100.0);
+
     switch (g_tempCount) 
     {
       case 0:
         tempAOneWire.convert_temperature(tempAaddress, true, false);
-        cubeData.tempA = (int16_t) (tempAOneWire.temperature(tempAaddress) * 100.0);
+        temp = (tempAOneWire.temperature(tempAaddress) * 100.0);
+        if (temp > 30000)
+        {
+          tempAOneWire.convert_temperature(tempAaddress, true, false);
+          temp = (tempAOneWire.temperature(tempAaddress) * 100.0);
+        }
+        if (temp < 30000) cubeData.tempA = temp;
         if (printDiagnostics) Serial.print("Temp A: ");
         if (printDiagnostics) Serial.println(cubeData.tempA);
         break;
       case 1:
         tempBOneWire.convert_temperature(tempBaddress, true, false);
-        cubeData.tempB = (int16_t) (tempBOneWire.temperature(tempBaddress) * 100.0);
+        temp =  (tempBOneWire.temperature(tempBaddress) * 100.0);
+        if (temp > 30000)
+        {
+          tempBOneWire.convert_temperature(tempBaddress, true, false);
+          temp = (tempBOneWire.temperature(tempBaddress) * 100.0);
+        }
+        if (temp < 30000) cubeData.tempB = temp;
         if (printDiagnostics) Serial.print("Temp B: ");
         if (printDiagnostics) Serial.println(cubeData.tempB);
         break;
       case 2:
         tempCOneWire.convert_temperature(tempCaddress, true, false);
-        cubeData.tempC= (int16_t) (tempCOneWire.temperature(tempCaddress) * 100.0);
+        temp = (tempCOneWire.temperature(tempCaddress) * 100.0);
+        if (temp > 30000)
+        {
+          tempCOneWire.convert_temperature(tempCaddress, true, false);
+          temp = (tempCOneWire.temperature(tempCaddress) * 100.0);
+        }
+        if (temp < 30000) cubeData.tempC = temp;
         if (printDiagnostics) Serial.print("Temp C: ");
         if (printDiagnostics) Serial.println(cubeData.tempC);
         break;
