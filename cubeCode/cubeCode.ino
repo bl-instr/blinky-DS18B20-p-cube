@@ -110,7 +110,7 @@ void cubeLoop()
   
   if ((nowTime - lastPublishTime) > publishInterval)
   {
-
+    cubeData.chipTemp = (int16_t) (analogReadTemp() * 100.0);
     switch (g_tempCount) 
     {
       case 0:
