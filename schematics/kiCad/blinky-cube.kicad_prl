@@ -40,7 +40,6 @@
       10,
       11,
       13,
-      14,
       15,
       16,
       17,
@@ -64,7 +63,7 @@
       36
     ],
     "visible_layers": "be3ffff_ffffffff",
-    "zone_display_mode": 0
+    "zone_display_mode": 1
   },
   "git": {
     "repo_password": "",
