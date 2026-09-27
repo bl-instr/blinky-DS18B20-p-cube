@@ -1,44 +1,56 @@
-#define BLINKY_DIAG        0
-#define CUBE_DIAG          0
-#define COMM_LED_PIN       2
-#define RST_BUTTON_PIN     3
 #include <BlinkyPicoW.h>
-#include "one_wire.h" 
-// from https://github.com/adamboardman/pico-onewire
+#include "one_wire.h"    // from https://github.com/adamboardman/pico-onewire
+
+// --- Configuration Constants ---
+constexpr int BLINKY_DIAG    = 0;
+constexpr int CUBE_DIAG      = 0;
+constexpr int COMM_LED_PIN   = 2;
+constexpr int RST_BUTTON_PIN = 3;
+constexpr int NUMCHAN        = 3;
+
+constexpr int SIGNAL_PIN[NUMCHAN] = {12, 15, 17};
+constexpr int POWER_PIN[NUMCHAN]  = {11, 14, 16};
+
 
 struct CubeSetting
 {
-  uint16_t publishInterval;
+  uint32_t publishInterval;
 };
-CubeSetting setting;
 
 struct CubeReading
 {
-  int16_t tempA;
-  int16_t tempB;
-  int16_t tempC;
-  int16_t chipTemp;
+  float temp[NUMCHAN];
 };
+
+struct CubeArm 
+{
+  bool temp[NUMCHAN];
+};
+
+// --- Global Variables ---
+CubeSetting setting;
 CubeReading reading;
+CubeReading readingLow;
+CubeReading readingHigh;
+CubeArm readingArm;
 
 unsigned long lastPublishTime;
-int signalPinA = 12;
-int signalPinB = 15;
-int signalPinC = 17;
 
-int powerPinA = 11;
-int powerPinB = 14;
-int powerPinC = 16;
+One_wire tempOneWire[] = 
+{
+  One_wire(SIGNAL_PIN[0]),
+  One_wire(SIGNAL_PIN[1]),
+  One_wire(SIGNAL_PIN[2])
+};
 
-One_wire tempAOneWire(signalPinA);
-One_wire tempBOneWire(signalPinB);
-One_wire tempCOneWire(signalPinC);
+rom_address_t tempAddress[3]{}; 
 
-rom_address_t tempAaddress{};
-rom_address_t tempBaddress{};
-rom_address_t tempCaddress{};
-
-int g_tempCount = 0;
+// --- Helper Functions ---
+template <typename T>
+inline bool outsideLimits(T current, T low, T high) 
+{
+  return (current < low) || (current > high);
+}
 
 void setupBlinky()
 {
@@ -55,34 +67,25 @@ void setupBlinky()
 
 void setupCube()
 {
-  if (CUBE_DIAG > 0) Serial.begin(9600);
+  if (BLINKY_DIAG < 1 && CUBE_DIAG > 0) {Serial.begin(9600);}
   setting.publishInterval = 4000;
-  pinMode(signalPinA, INPUT_PULLUP);  
-  pinMode(signalPinB, INPUT_PULLUP);  
-  pinMode(signalPinC, INPUT_PULLUP);  
 
-  pinMode(powerPinA, OUTPUT);  
-  pinMode(powerPinB, OUTPUT);  
-  pinMode(powerPinC, OUTPUT);  
-
-  digitalWrite(powerPinA, HIGH);
-  digitalWrite(powerPinB, HIGH);
-  digitalWrite(powerPinC, HIGH);
+  for (int i = 0; i < NUMCHAN; ++i) 
+  {
+    pinMode(SIGNAL_PIN[i], INPUT_PULLUP);
+    pinMode(POWER_PIN[i],  OUTPUT);
+    digitalWrite(POWER_PIN[i], HIGH);
+  }
   
   delay(1000);
-  
-  tempAOneWire.init();
-  tempBOneWire.init();
-  tempCOneWire.init();
-  
-  tempAOneWire.single_device_read_rom(tempAaddress);
-  tempBOneWire.single_device_read_rom(tempBaddress);
-  tempCOneWire.single_device_read_rom(tempCaddress);
-   
-  reading.tempA = -100;
-  reading.tempB = -100;
-  reading.tempC = -100;
-  g_tempCount = 0;
+
+  for (int i = 0; i < NUMCHAN; ++i) 
+  {
+    tempOneWire[i].init();
+    tempOneWire[i].single_device_read_rom(tempAddress[i]);
+    reading.temp[i] = -100.0;
+    readingArm.temp[i] = true;
+  }
 
   lastPublishTime = millis(); 
 }
@@ -90,60 +93,51 @@ void setupCube()
 void loopCube()
 {
   unsigned long now = millis();
-  int16_t temp;
   if ((now - lastPublishTime) > setting.publishInterval)
   {
-    reading.chipTemp = (int16_t) (analogReadTemp() * 100.0);
-    switch (g_tempCount) 
-    {
-      case 0:
-        tempAOneWire.convert_temperature(tempAaddress, true, false);
-        temp = (tempAOneWire.temperature(tempAaddress) * 100.0);
-        if (temp > 30000)
-        {
-          tempAOneWire.convert_temperature(tempAaddress, true, false);
-          temp = (tempAOneWire.temperature(tempAaddress) * 100.0);
-        }
-        if (temp < 30000) reading.tempA = temp;
-        if (CUBE_DIAG > 0) Serial.print("Temp A: ");
-        if (CUBE_DIAG > 0) Serial.println(reading.tempA);
-        break;
-      case 1:
-        tempBOneWire.convert_temperature(tempBaddress, true, false);
-        temp =  (tempBOneWire.temperature(tempBaddress) * 100.0);
-        if (temp > 30000)
-        {
-          tempBOneWire.convert_temperature(tempBaddress, true, false);
-          temp = (tempBOneWire.temperature(tempBaddress) * 100.0);
-        }
-        if (temp < 30000) reading.tempB = temp;
-        if (CUBE_DIAG > 0) Serial.print("Temp B: ");
-        if (CUBE_DIAG > 0) Serial.println(reading.tempB);
-        break;
-      case 2:
-        tempCOneWire.convert_temperature(tempCaddress, true, false);
-        temp = (tempCOneWire.temperature(tempCaddress) * 100.0);
-        if (temp > 30000)
-        {
-          tempCOneWire.convert_temperature(tempCaddress, true, false);
-          temp = (tempCOneWire.temperature(tempCaddress) * 100.0);
-        }
-        if (temp < 30000) reading.tempC = temp;
-        if (CUBE_DIAG > 0) Serial.print("Temp C: ");
-        if (CUBE_DIAG > 0) Serial.println(reading.tempC);
-        break;
-      default:
-        break;
-    }
-    g_tempCount = g_tempCount + 1;
-    if (g_tempCount > 2) g_tempCount = 0;
-
     lastPublishTime = now;
-    boolean successful = BlinkyPicoW.publishCubeData((uint8_t*) &setting, (uint8_t*) &reading, false);
+    if (BlinkyPicoW.publishCubeData(reinterpret_cast<uint8_t*>(&setting), reinterpret_cast<uint8_t*>(&reading), false)) 
+    {
+      for (int i = 0; i < NUMCHAN; ++i) 
+      {
+        if (!outsideLimits(reading.temp[i], readingLow.temp[i], readingHigh.temp[i])) 
+        {
+          readingArm.temp[i] = true;
+        }
+      }
+    }  
   }
-
-  boolean newSettings = BlinkyPicoW.retrieveCubeSetting((uint8_t*) &setting);
-  if (newSettings)
+  for (int i = 0; i < NUMCHAN; ++i) 
+  {
+    tempOneWire[i].convert_temperature(tempAddress[i], true, false);
+    reading.temp[i] = tempOneWire[i].temperature(tempAddress[i]);
+    if (BlinkyPicoW.isInitialized())
+    {  
+      if (outsideLimits(reading.temp[i], readingLow.temp[i], readingHigh.temp[i])) 
+      {
+        if (readingArm.temp[i]) 
+        {
+          const bool published = BlinkyPicoW.publishCubeData(
+            reinterpret_cast<uint8_t*>(&setting), 
+            reinterpret_cast<uint8_t*>(&reading), 
+            true
+          );
+          readingArm.temp[i] = !published;
+          if (published) 
+          {
+            lastPublishTime = now;
+          }
+        }
+      }
+    }
+  }
+  // Check for New MQTT Settings
+  const bool newSettings = BlinkyPicoW.retrieveCubeSetting(
+    reinterpret_cast<uint8_t*>(&setting), 
+    reinterpret_cast<uint8_t*>(&readingLow), 
+    reinterpret_cast<uint8_t*>(&readingHigh)
+  );
+  if (newSettings) 
   {
     if (setting.publishInterval < 4000) setting.publishInterval = 4000;
   }
