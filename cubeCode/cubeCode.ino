@@ -7,6 +7,8 @@ constexpr int CUBE_DIAG      = 0;
 constexpr int COMM_LED_PIN   = 2;
 constexpr int RST_BUTTON_PIN = 3;
 constexpr int NUMCHAN        = 3;
+constexpr float TMIN        = -50.0;
+constexpr float TMAX        =  80.0;
 
 constexpr int SIGNAL_PIN[NUMCHAN] = {12, 15, 17};
 constexpr int POWER_PIN[NUMCHAN]  = {11, 14, 16};
@@ -110,22 +112,26 @@ void loopCube()
   for (int i = 0; i < NUMCHAN; ++i) 
   {
     tempOneWire[i].convert_temperature(tempAddress[i], true, false);
-    reading.temp[i] = tempOneWire[i].temperature(tempAddress[i]);
-    if (BlinkyPicoW.isInitialized())
-    {  
-      if (outsideLimits(reading.temp[i], readingLow.temp[i], readingHigh.temp[i])) 
-      {
-        if (readingArm.temp[i]) 
+    float testTemp = tempOneWire[i].temperature(tempAddress[i]);
+    if ((TMIN < testTemp) && (testTemp < TMAX))
+    {
+      reading.temp[i] = testTemp;
+      if (BlinkyPicoW.isInitialized())
+      {  
+        if (outsideLimits(reading.temp[i], readingLow.temp[i], readingHigh.temp[i])) 
         {
-          const bool published = BlinkyPicoW.publishCubeData(
-            reinterpret_cast<uint8_t*>(&setting), 
-            reinterpret_cast<uint8_t*>(&reading), 
-            true
-          );
-          readingArm.temp[i] = !published;
-          if (published) 
+          if (readingArm.temp[i]) 
           {
-            lastPublishTime = now;
+            const bool published = BlinkyPicoW.publishCubeData(
+              reinterpret_cast<uint8_t*>(&setting), 
+              reinterpret_cast<uint8_t*>(&reading), 
+              true
+            );
+            readingArm.temp[i] = !published;
+            if (published) 
+            {
+              lastPublishTime = now;
+            }
           }
         }
       }
